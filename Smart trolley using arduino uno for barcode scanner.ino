@@ -1,174 +1,240 @@
-# import sys
-#  
-# sys.path.insert(0, '/home/pi/Ali Proj/Libraries')
-import gspread
-from time import sleep
-from RPLCD.i2c import CharLCD
-lcd = CharLCD('PCF8574', 0x27)
-from escpos.printer import Serial
-from datetime import datetime
-now = datetime.now()
-dt_string = now.strftime("%b/%d/%Y %H:%M:%S")
-lcd.cursor_pos = (0, 0)
-lcd.write_string("Initiallising...")
-#locating the spread sheet json file
-gc = gspread.service_account(filename='/home/pi/Ali Proj/Proj 4 Shoping Cart with Thermal Printer/Shopping Cart on 20_4 LCD/shop-data-thermal-585dc7bffa1f.json')
-#sheet name is to be passed
-sh = gc.open("Shop Data for Thermal")
-worksheet=sh.get_worksheet(0)
-count=0
-item_cost=0
-totalCost=0
-SNo=0
-scode=""
-qty=1
-scodePrev=0
-item_name=""
-entryF=[]
-""" 9600 Baud, 8N1, Flow Control Enabled """
-p = Serial(devfile='/dev/serial0',
-           baudrate=9600,
-           bytesize=8,
-           parity='N',
-           stopbits=1,
-           timeout=1.00,
-           dsrdtr=True)
-p.set(
-    align="center",
-    font="a",
-    width=1,
-    height=1,    
-    )
-def print_receipt():
-    p.text("\n")
-    p.set(
-            align="center",
-            font="a",
-            width=1,
-            height=1,    
-        )
-    #Printing the image
-    p.image("/home/pi/Ali Proj/Proj 3 Interfacing thermal printer with pi/CD_new_Logo_black.png",impl="bitImageColumn")
-    #printing the initial data
-    p.set(width=2,
-         height=2,
-         align="center",)
-    p.text(" ===============\n")
-    p.text("Tax Invoice\n")
-    p.text(" ===============\n")
-    p.set(width=1,
-         height=1,
-         align="left",)
-    p.text("CIRCUIT DIGEST\n")
-    p.text("VSB COLLEGE\n")
-    p.text("LOCATION : KARUR\n")
-    p.text("TEL : 0141222585\n")
-    p.text("GSTIN : 08AAMFT88558855\n")
-    p.text("Bill No. : \n\n")
-    p.text("DATE : ")
-    p.text(dt_string)
-    p.text("\n")
-    p.text("CASHIER : \n")
-    p.text(" ===========================\n")
-    p.text("S.No     ITEM   QTY   PRICE\n")
-    p.text(" -------------------------------\n")
-    print(text_F)
-    p.text(text_F)
-    p.text(" -------------------------------\n")
-    p.set(
-            # underline=0,
-            align="right",
-         )
-    p.text("     SUBTOTAL:  ")
-    p.text(totalCostS)
-    p.text("\n")          
-    p.text("     DISCOUNT:  0\n")
-    p.text("     VAT @ 0%: 0\n")
-    p.text(" ===========================\n")
-    p.set(align="center",  
-         )
-    p.text("    BILL TOTAL: ")
-    p.text(totalCostS)
-    p.text("\n")
-    p.text(" --------------------------\n")
-    p.text("THANK YOU\n")   
-    p.set(width=2,
-         height=2,
-         align="center",)
-    p.text(" ===============\n")
-    p.text("Please scan\nto Pay\n")
-    p.text(" ===============\n")
-    p.set(
-            align="center",
-            font="a",
-            width=1,
-            height=1,
-            density=2,
-            invert=0,
-            smooth=False,
-            flip=False,      
-        )
-    p.qr("9509957951@ybl",native=True,size=12)
-    p.text("\n")
-    p.barcode('123456', 'CODE39')
-    #if your printer has paper cuting facility then you can use this function
-    p.cut()
-    print("prnting done")   
-lcd.cursor_pos = (0, 0)
-lcd.write_string('Please Scan...')
-while 1:
-    try:
-        scode=input("Scan the barcode")       
-        if scode=="8906128542687": #Bill Printing Barcode
-            print("done shopping ")
-            lcd.clear()
-            print(*entryF)
-            print("in string")
-            print(len(entryF))
-            text_F=" "
-            for i in range(0,len(entryF)):
-                text_F=text_F+entryF[i]
-                i=i+1           
-            lcd.cursor_pos = (0, 0)
-            lcd.write_string("Thanks for Shopping")           
-            lcd.cursor_pos = (1, 7)
-            lcd.write_string("With Us")           
-            lcd.cursor_pos = (3, 0)
-            lcd.write_string("Printing Invoice...")
-            print_receipt() 
-        else:
-            cell=worksheet.find(scode)
-            print("found on R%sC%s"%(cell.row,cell.col))
-            item_cost = worksheet.cell(cell.row, cell.col+2).value
-            item_name = worksheet.cell(cell.row, cell.col+1).value
-            lcd.clear()
-            SNo=SNo+1   
-            entry = [SNo,item_name,qty,item_cost]
-            entryS=str(entry)+'\n'
-            print("New Item ",*entry)
-            lcd.cursor_pos = (0, 2)
-            lcd.write_string(str(SNo))
-            lcd.cursor_pos = (0, 5)
-            lcd.write_string("Item(s) added")           
-            lcd.cursor_pos = (1, 1)
-            lcd.write_string(item_name)           
-            lcd.cursor_pos = (2, 5)
-            lcd.write_string("of Rs.")
-            lcd.cursor_pos = (2, 11)
-            lcd.write_string(item_cost)           
-            item_cost=int(item_cost)
-            totalCost=item_cost+totalCost           
-            lcd.cursor_pos = (3, 4)
-            lcd.write_string("Cart Total")           
-            lcd.cursor_pos = (3, 15)
-            lcd.write_string(str(totalCost))           
-            entryF.append(entryS)   #adding entry in Final Buffer
-            sleep(2)           
-    except:
-        print("Unknown Barcode or Item Not Registered")
-        lcd.clear()
-        lcd.cursor_pos = (0, 0)
-        lcd.write_string("Item Not Found...")
-        lcd.cursor_pos = (2, 0)
-        lcd.write_string("Scan Again...")
-        sleep(2)
+
+#include <wiringPi.h>
+#include <wiringPiI2C.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <ctime>
+#include <chrono>
+#include <thread>
+#include <cstring>
+
+constexpr const char* CSV_FILE = "shop_data.csv";
+constexpr int LCD_ADDR = 0x27;
+constexpr const char* SERIAL_DEVICE = "/dev/serial0";
+constexpr speed_t PRINTER_BAUD = B9600;
+
+struct Item {
+    std::string barcode;
+    std::string name;
+    int price = 0;
+};
+
+struct CartEntry {
+    int sno;
+    std::string name;
+    int qty;
+    int price;
+};
+
+class SimpleLCD {
+    int fd;
+public:
+    SimpleLCD(): fd(-1) {}
+    bool init(int addr = LCD_ADDR) {
+        wiringPiSetup();
+        fd = wiringPiI2CSetup(addr);
+        if (fd < 0) return false;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        write4(0x33,0x08); write4(0x32,0x08);
+        cmd(0x28); cmd(0x0C); cmd(0x06); cmd(0x01);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        return true;
+    }
+private:
+    void toggleEnable(unsigned char data) {
+        wiringPiI2CWrite(fd, data | 0x04);
+        delayMicroseconds(500);
+        wiringPiI2CWrite(fd, data & ~0x04);
+        delayMicroseconds(500);
+    }
+    void write4(unsigned char data, unsigned char mode) {
+        unsigned char high = (data & 0xF0) | mode;
+        unsigned char low  = ((data << 4) & 0xF0) | mode;
+        wiringPiI2CWrite(fd, high); toggleEnable(high);
+        wiringPiI2CWrite(fd, low);  toggleEnable(low);
+    }
+    void cmd(unsigned char c) { write4(c, 0x08); }
+public:
+    void clear() { cmd(0x01); delay(2); }
+    void setCursor(int row, int col) {
+        int row_offsets[] = {0x00,0x40,0x14,0x54};
+        cmd(0x80 | (col + row_offsets[row]));
+    }
+    void writeStringAt(int row, int col, const std::string &s) {
+        setCursor(row,col);
+        for (char c: s) write4(c, 0x09);
+    }
+};
+
+class Printer {
+    int fd = -1;
+public:
+    bool init(const char* dev = SERIAL_DEVICE) {
+        fd = open(dev, O_RDWR | O_NOCTTY);
+        if (fd < 0) return false;
+        struct termios options;
+        tcgetattr(fd, &options);
+        cfsetispeed(&options, PRINTER_BAUD);
+        cfsetospeed(&options, PRINTER_BAUD);
+        options.c_cflag |= (CLOCAL | CREAD);
+        options.c_cflag &= ~CSIZE;
+        options.c_cflag |= CS8;
+        options.c_cflag &= ~PARENB;
+        options.c_cflag &= ~CSTOPB;
+        tcsetattr(fd, TCSANOW, &options);
+        return true;
+    }
+    void writeLine(const std::string &s) {
+        if (fd < 0) return;
+        write(fd, s.c_str(), s.size());
+        write(fd, "\n", 1);
+    }
+    void writeText(const std::string &s) {
+        if (fd < 0) return;
+        write(fd, s.c_str(), s.size());
+    }
+    void cut() {
+        if (fd < 0) return;
+        unsigned char cut_cmd[] = {0x1d, 'V', 1};
+        write(fd, cut_cmd, sizeof(cut_cmd));
+    }
+    void closeDev() { if (fd>=0) ::close(fd); fd=-1; }
+    ~Printer(){ closeDev(); }
+};
+
+class SmartTrolley {
+    std::vector<Item> items;
+    std::vector<CartEntry> cart;
+    SimpleLCD lcd;
+    Printer printer;
+    int totalCost = 0;
+public:
+    SmartTrolley() {}
+    void start() {
+        lcd.init();
+        lcd.clear();
+        lcd.writeStringAt(0,0,"Initialising...");
+        std::this_thread::sleep_for(std::chrono::milliseconds(700));
+        loadCSV(CSV_FILE);
+        lcd.clear(); lcd.writeStringAt(0,0,"Please Scan...");
+        std::cout << "Loaded " << items.size() << " items from " << CSV_FILE << "\n";
+        bool prOK = printer.init();
+        if (!prOK) std::cout << "Printer not opened. Printing disabled.\n";
+        runLoop();
+    }
+private:
+    void loadCSV(const std::string &file) {
+        std::ifstream ifs(file);
+        if (!ifs.is_open()) {
+            std::cout << "CSV not found: " << file << "\n";
+            return;
+        }
+        std::string line;
+        while (std::getline(ifs,line)) {
+            if (line.size()<3) continue;
+            std::istringstream ss(line);
+            std::string b,n,p;
+            if (!std::getline(ss,b,',')) continue;
+            if (!std::getline(ss,n,',')) continue;
+            if (!std::getline(ss,p,',')) continue;
+            Item it; it.barcode = trim(b); it.name = trim(n); it.price = std::stoi(trim(p));
+            items.push_back(it);
+        }
+    }
+    static std::string trim(const std::string &s) {
+        size_t a = s.find_first_not_of(" \t\r\n");
+        if (a==std::string::npos) return "";
+        size_t z = s.find_last_not_of(" \t\r\n");
+        return s.substr(a, z-a+1);
+    }
+    Item* findByBarcode(const std::string &code) {
+        for (auto &it: items) if (it.barcode == code) return &it;
+        return nullptr;
+    }
+    void addToCart(Item *it) {
+        CartEntry e; e.sno = cart.size()+1; e.name = it->name; e.qty = 1; e.price = it->price;
+        cart.push_back(e);
+        totalCost += it->price;
+    }
+    void printReceipt() {
+        // build and send
+        printer.writeLine("======================");
+        auto t = std::time(nullptr);
+        std::tm tm = *std::localtime(&t);
+        char buf[128];
+        std::snprintf(buf,sizeof(buf),"DATE: %04d-%02d-%02d %02d:%02d:%02d",
+                      tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        printer.writeLine(buf);
+        printer.writeLine("CIRCUIT DIGEST - VSB COLLEGE");
+        printer.writeLine("------------------------------");
+        printer.writeLine("S.No  ITEM             QTY  PRICE");
+        printer.writeLine("------------------------------");
+        for (auto &c: cart) {
+            char line[128];
+            std::snprintf(line,sizeof(line),"%2d    %-15.15s  %2d   %4d",
+                          c.sno, c.name.c_str(), c.qty, c.price);
+            printer.writeLine(line);
+        }
+        printer.writeLine("------------------------------");
+        std::snprintf(buf,sizeof(buf),"SUBTOTAL: %d", totalCost);
+        printer.writeLine(buf);
+        printer.writeLine("DISCOUNT: 0");
+        printer.writeLine("VAT @0% : 0");
+        printer.writeLine("------------------------------");
+        std::snprintf(buf,sizeof(buf),"BILL TOTAL: %d", totalCost);
+        printer.writeLine(buf);
+        printer.writeLine("------------------------------");
+        printer.writeLine("THANK YOU");
+        printer.cut();
+    }
+    void runLoop() {
+        std::string scode;
+        while (true) {
+            std::cout << "Scan the barcode: ";
+            if (!std::getline(std::cin, scode)) break;
+            scode = trim(scode);
+            if (scode.empty()) continue;
+            if (scode == "8906128542687" || scode == "PRINT") {
+                lcd.clear(); lcd.writeStringAt(0,0,"Printing Invoice...");
+                printReceipt();
+                cart.clear(); totalCost = 0;
+                lcd.clear(); lcd.writeStringAt(0,0,"Thanks for Shopping");
+                lcd.writeStringAt(1,0,"With Us");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+                lcd.clear(); lcd.writeStringAt(0,0,"Please Scan...");
+                continue;
+            }
+            Item* it = findByBarcode(scode);
+            if (!it) {
+                std::cout << "Unknown Barcode or Item Not Registered\n";
+                lcd.clear(); lcd.writeStringAt(0,0,"Item Not Found...");
+                lcd.writeStringAt(2,0,"Scan Again...");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+                lcd.clear(); lcd.writeStringAt(0,0,"Please Scan...");
+                continue;
+            }
+            addToCart(it);
+            std::cout << "Added: " << it->name << " Rs." << it->price << "   Total: " << totalCost << "\n";
+            lcd.clear();
+            std::string line1 = "Item(s) added";
+            lcd.writeStringAt(0,0,line1);
+            lcd.writeStringAt(1,0, std::to_string(cart.size()) + ". " + it->name);
+            lcd.writeStringAt(3,0, "Cart Total: Rs." + std::to_string(totalCost));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            lcd.clear(); lcd.writeStringAt(0,0,"Please Scan...");
+        }
+    }
+};
+
+int main() {
+    SmartTrolley st;
+    st.start();
+    return 0;
+}
